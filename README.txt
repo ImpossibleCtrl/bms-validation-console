@@ -1,1 +1,1 @@
-Upload CSV/XLSX, validate with baked rules. Hosted via GitHub Pages.
+This console includes the full BMS–CH rules baked in from your Excel file. Upload CSV or XLSX, click Run, download failures.
