@@ -1,0 +1,103 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BMS Data Validation Console</title>
+  <!-- CDN dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: sans-serif; background:#0f1115; color:#e9edf1; margin:0; }
+    header { background:#171a21; padding:12px 20px; display:flex; justify-content:space-between; align-items:center; }
+    h1 { font-size:18px; margin:0; }
+    .container { display:grid; grid-template-columns: 380px 1fr; gap:16px; padding:16px; }
+    .card { background:#1e2330; border-radius:12px; padding:12px; }
+    textarea { width:100%; min-height:200px; }
+    table { border-collapse:collapse; width:100%; font-size:13px; }
+    th, td { border-bottom:1px solid #333; padding:6px 8px; }
+    th { background:#171a21; position:sticky; top:0; }
+    .pill { border-radius:6px; padding:2px 6px; font-size:12px; }
+    .pill.error { background:#ff5d5d44; color:#ff9a9a; }
+    .pill.warn { background:#ffb84d44; color:#ffd79a; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>BMS Data Validation Console</h1>
+    <div>
+      <button onclick="runValidation()">Run</button>
+      <button onclick="downloadFailures()">Download Failures</button>
+    </div>
+  </header>
+  <div class="container">
+    <div class="card">
+      <h2>Upload</h2>
+      <input type="file" id="dataFileCsv" accept=".csv,text/csv"/><br/>
+      <input type="file" id="dataFileXlsx" accept=".xlsx"/><br/>
+      <div id="fileStatus">No file loaded</div>
+      <h2>Rules JSON</h2>
+      <textarea id="rulesArea"></textarea>
+    </div>
+    <div class="card">
+      <h2>Results</h2>
+      <div id="resultsWrap">Nothing yet</div>
+    </div>
+  </div>
+
+<script>
+let csvRows=[], headers=[], failures=[], rules={};
+
+// initial rules JSON placeholder
+rules = {"meta":{"name":"BMS–CH Rule Set","version":"CDN-demo"},"rules":[
+  {"id":"REQ_Site","name":"Site Name required","severity":"error","checks":[{"field":"Site Name","op":"required"}],"message":"Site Name is required"}
+]};
+document.getElementById('rulesArea').value = JSON.stringify(rules,null,2);
+
+document.getElementById('dataFileCsv').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const t=await f.text(); const r=parseCSV(t);
+  headers=r[0]; csvRows=r.slice(1).map(a=>Object.fromEntries(headers.map((h,i)=>[h,a[i]||''])));
+  document.getElementById('fileStatus').textContent=`Loaded ${f.name}, ${csvRows.length} rows`;
+});
+document.getElementById('dataFileXlsx').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const data=new Uint8Array(await f.arrayBuffer());
+  const wb=XLSX.read(data,{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+  headers=arr[0]; csvRows=arr.slice(1).map(a=>Object.fromEntries(headers.map((h,i)=>[h,a[i]||''])));
+  document.getElementById('fileStatus').textContent=`Loaded ${f.name}, ${csvRows.length} rows`;
+});
+
+function parseCSV(text){const rows=[];let i=0,field='',row=[],inQuotes=false;
+ while(i<text.length){const c=text[i];if(inQuotes){if(c=='"'){if(text[i+1]=='"'){field+='"';i++;}else inQuotes=false;}else field+=c;}
+ else{if(c=='"')inQuotes=true;else if(c==','){row.push(field);field='';}else if(c=='\n'||c=='\r'){if(c=='\r'&&text[i+1]=='\n')i++;row.push(field);field='';rows.push(row);row=[];}else field+=c;}i++;}
+ if(field!==''||text[text.length-1]==',')row.push(field);if(row.length)rows.push(row);return rows;}
+
+function runValidation(){
+  try{rules=JSON.parse(document.getElementById('rulesArea').value);}catch(e){alert('Invalid rules');return;}
+  failures=[];let rowIndex=2;
+  for(const row of csvRows){
+    for(const rule of rules.rules||[]){
+      for(const check of rule.checks||[]){
+        if(check.op==='required'){if(!row[check.field]||String(row[check.field]).trim()===''){failures.push({rowIndex,ruleId:rule.id,severity:rule.severity,message:rule.message,details:[`${check.field} required`]});}}
+      }
+    }
+    rowIndex++;
+  }
+  renderResults();
+}
+function renderResults(){
+  if(!failures.length){document.getElementById('resultsWrap').textContent='No failures';return;}
+  let html='<table><thead><tr><th>Row</th><th>Rule</th><th>Severity</th><th>Message</th><th>Details</th></tr></thead><tbody>';
+  for(const f of failures){html+=`<tr><td>${f.rowIndex}</td><td>${f.ruleId}</td><td><span class="pill ${f.severity}">${f.severity}</span></td><td>${f.message}</td><td>${f.details.join('; ')}</td></tr>`;}
+  html+='</tbody></table>';document.getElementById('resultsWrap').innerHTML=html;
+}
+function downloadFailures(){if(!failures.length){alert('No failures');return;}
+ const rows=[['Row','Rule','Severity','Message','Details']];for(const f of failures)rows.push([f.rowIndex,f.ruleId,f.severity,f.message,f.details.join('; ')]);
+ const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+ const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='failures.csv';a.click();}
+</script>
+</body>
+</html>
