@@ -1,0 +1,10 @@
+Site Name,Work Zone,Building Name,Floor,Room,Status,TagID,Reason Not Tagged,Asset Number,Asset Name
+DEMO_Site1,ZoneA,Building1,1,101,Online,TAG123,,A001,Pump
+DEMO_Site2,ZoneB,Building2,2,202,Offline,,Reason A,A002,Fan
+,ZoneC,Building3,3,303,Online,TAG456,,A003,Chiller
+DEMO_Site3,ZoneD,Building4,4,404,Unknown,TAG789,,A004,Boiler
+DEMO_Site4,ZoneE,Building5,5,505,Online,,,A005,Valve
+DEMO_Site5,MismatchZone,Building6,6,606,Online,TAG321,,A006,ZoneDifferent
+DEMO_Site6,ZoneF,Building7,7,707,Offline,TAG654,,X999,Pump
+DEMO_Site7,ZoneG,Building8,8,808,Online,TAG777,,A007,Fan
+DEMO_Site8,ZoneH,Building9,9,909,Offline,,Reason B,A008,Pump
