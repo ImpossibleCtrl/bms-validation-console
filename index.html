@@ -1,9 +1,193 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>BMS Validation Dashboard</title></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BMS Validation Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background:#0f1115; color:#e9edf1; margin:0; }
+    header { background:#171a21; padding:12px 20px; display:flex; justify-content:space-between; align-items:center; }
+    nav button { background:#1e2330; border:none; padding:8px 12px; border-radius:6px; color:#fff; cursor:pointer; margin-right:8px; }
+    nav button.active { background:#3b82f6; }
+    .tab { display:none; padding:16px; }
+    .tab.active { display:block; }
+    .container { display:flex; gap:16px; }
+    .card { flex:1; background:#1e2330; border-radius:12px; padding:12px; overflow:auto; }
+    table { border-collapse:collapse; width:100%; font-size:13px; }
+    th, td { border-bottom:1px solid #333; padding:6px 8px; }
+    th { background:#171a21; position:sticky; top:0; }
+    .pill { border-radius:6px; padding:2px 6px; font-size:12px; }
+    .pill.error { background:#ff5d5d44; color:#ff9a9a; }
+    .pill.warn { background:#ffb84d44; color:#ffd79a; }
+  </style>
+</head>
 <body>
-<h1>BMS Validation Dashboard</h1>
-<p>This is the full working dashboard with validation, pivot+chart, saved pivots, corrected data, and demo data auto-load.
-Make sure demo_data.csv is in the same repo root. On load, demo pivot and Bar chart will display.</p>
+<header>
+  <h1>BMS Validation Dashboard</h1>
+  <nav>
+    <button onclick="showTab('validation')" class="active">Validation</button>
+    <button onclick="showTab('pivot')">Pivot + Charts</button>
+    <button onclick="showTab('corrected')">Corrected Data</button>
+  </nav>
+</header>
+
+<div id="validation" class="tab active">
+  <div class="card">
+    <h2>Validation Results</h2>
+    <button onclick="downloadFailures()" style="background:blue;">Download Failures CSV</button>
+    <div id="resultsWrap">Loading demo data...</div>
+    <button onclick="disableDemo()">Disable Demo Data</button>
+  </div>
+</div>
+
+<div id="pivot" class="tab">
+  <div class="container">
+    <div class="card">
+      <h2>Pivot Builder</h2>
+      <label>Row:</label><select id="rowField"></select><br>
+      <label>Column:</label><select id="colField"></select><br>
+      <label>Value:</label><select id="valField"></select><br>
+      <label>Aggregation:</label>
+      <select id="aggFunc"><option value="count">Count</option></select><br><br>
+      <button onclick="generatePivot()">Generate Pivot</button>
+      <button onclick="downloadPivotExcel()">Download Pivot Excel</button>
+      <h3>Saved Pivots</h3>
+      <select id="savedPivots"></select>
+      <button onclick="loadSavedPivot()">Load</button>
+      <button onclick="resetDefaultPivots()">Reset Defaults</button>
+    </div>
+    <div class="card">
+      <h2>Pivot Table</h2>
+      <div id="pivotTable"></div>
+    </div>
+    <div class="card">
+      <h2>Chart</h2>
+      <button onclick="drawChart('bar')">Bar</button>
+      <button onclick="drawChart('pie')">Pie</button>
+      <button onclick="drawChart('line')">Line</button>
+      <button onclick="downloadChart()">Download Chart PNG</button>
+      <canvas id="chartCanvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<div id="corrected" class="tab">
+  <div class="card">
+    <h2>Corrected Dataset</h2>
+    <button onclick="downloadCorrectedExcel()">Download Corrected Excel</button>
+  </div>
+</div>
+
+<script>
+let dataRows = [], headers = [], failures = [], chart, demoActive = true;
+
+function showTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Load demo_data.csv on startup
+window.onload = async ()=>{
+  if(demoActive){
+    const res = await fetch('demo_data.csv');
+    const text = await res.text();
+    const rows = text.trim().split('\n').map(r=>r.split(','));
+    headers = rows[0];
+    dataRows = rows.slice(1).map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]])));
+    runValidation();
+    generatePivot(true); // auto-generate default pivot
+  }
+};
+
+function disableDemo(){ demoActive=false; dataRows=[]; headers=[]; failures=[];
+  document.getElementById('resultsWrap').innerText="Demo data disabled. Upload your own."; 
+  document.getElementById('pivotTable').innerText=""; 
+  if(chart) chart.destroy();
+}
+
+function runValidation(){
+  failures=[]; let rowIndex=2;
+  for(const row of dataRows){
+    // Required fields
+    for(const f of ["Site Name","Work Zone","Building Name","Floor","Room","Status","Asset Number","Asset Name"]){
+      if(!row[f]||row[f].trim()===""){failures.push({rowIndex,severity:"error",message:`${f} required`});}
+    }
+    // Status check
+    if(row["Status"] && !["Online","Offline"].includes(row["Status"])){
+      failures.push({rowIndex,severity:"error",message:"Status must be Online/Offline"});
+    }
+    // TagID or Reason
+    if((!row["TagID"]||row["TagID"].trim()==="") && (!row["Reason Not Tagged"]||row["Reason Not Tagged"].trim()==="")){
+      failures.push({rowIndex,severity:"error",message:"TagID or Reason Not Tagged required"});
+    }
+    rowIndex++;
+  }
+  renderResults();
+}
+
+function renderResults(){
+  if(!failures.length){document.getElementById('resultsWrap').textContent='No failures';return;}
+  let html='<table><thead><tr><th>Row</th><th>Severity</th><th>Message</th></tr></thead><tbody>';
+  for(const f of failures){
+    html+=`<tr><td>${f.rowIndex}</td><td><span class="pill ${f.severity}">${f.severity}</span></td><td>${f.message}</td></tr>`;
+  }
+  html+='</tbody></table>';document.getElementById('resultsWrap').innerHTML=html;
+}
+
+function downloadFailures(){
+  if(!failures.length){alert('No failures');return;}
+  const rows=[['Row','Severity','Message']];
+  for(const f of failures)rows.push([f.rowIndex,f.severity,f.message]);
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='failures.csv';a.click();
+}
+
+// Pivot functions
+function populateFields(){
+  let sel = id=>document.getElementById(id);
+  sel('rowField').innerHTML = headers.map(h=>`<option>${h}</option>`).join('');
+  sel('colField').innerHTML = '<option value="">(none)</option>'+headers.map(h=>`<option>${h}</option>`).join('');
+  sel('valField').innerHTML = headers.map(h=>`<option>${h}</option>`).join('');
+}
+
+function generatePivot(auto=false){
+  if(!headers.length)return;
+  populateFields();
+  const rowF = document.getElementById('rowField').value||headers[5]; // Status default
+  const valF = document.getElementById('valField').value||headers[0];
+  let counts={};
+  for(const r of dataRows){
+    const key=r[rowF]||"(blank)";
+    counts[key]=(counts[key]||0)+1;
+  }
+  let html='<table><thead><tr><th>'+rowF+'</th><th>Count</th></tr></thead><tbody>';
+  for(const k in counts) html+=`<tr><td>${k}</td><td>${counts[k]}</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('pivotTable').innerHTML=html;
+  if(auto) drawChart('bar',counts,rowF);
+}
+
+function drawChart(type,dataObj,rowF){
+  if(chart) chart.destroy();
+  const ctx=document.getElementById('chartCanvas').getContext('2d');
+  chart=new Chart(ctx,{
+    type:type,
+    data:{labels:Object.keys(dataObj),datasets:[{label:rowF,data:Object.values(dataObj)}]},
+    options:{responsive:true,plugins:{legend:{display:true}}}
+  });
+}
+
+function downloadPivotExcel(){alert("Pivot Excel download not implemented in demo build.");}
+function downloadChart(){if(!chart){alert("No chart");return;} chart.toBase64Image();}
+function loadSavedPivot(){alert("Loading saved pivot not implemented in demo build.");}
+function resetDefaultPivots(){generatePivot(true);}
+function downloadCorrectedExcel(){alert("Corrected Excel export not implemented in demo build.");}
+
+</script>
 </body>
 </html>
