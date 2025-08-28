@@ -1,0 +1,18 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BMS Validation Console</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>BMS Validation Console</h1>
+    <p>Upload your dataset (CSV/XLSX), run validation, and download corrected export + reports.</p>
+    <input type="file" id="fileInput" accept=".csv, .xlsx">
+    <button id="validateBtn">Run Validation</button>
+    <div id="results"></div>
+    <a id="downloadLink" style="display:none;">Download Corrected File</a>
+    <script src="rules.js"></script>
+</body>
+</html>
