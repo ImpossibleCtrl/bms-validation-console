@@ -1,7 +1,6 @@
 
 function validateData(data) {
-    const errors = [];
-    const warnings = [];
+    const rowErrors = {};
     const corrected = [];
     const summaryCounts = {};
 
@@ -13,8 +12,10 @@ function validateData(data) {
     const caEnvVals = ["Clean, temperate, dry","Wide variation in temp/humidity/dust","Extremes of temperature","Liable to extreme dust or flooding"];
     const caCapacityUnitVals = ["AMP","BTU","CFM","GAL","GPM","HP","kVA","KW","Ln.Ft.","MBH","MW","N/A","Other (List in Comments)","PSI","SCFM","Sq.Ft.","TON","V"];
 
-    function addSummary(field, type){
-        const key = field+"-"+type;
+    function addRowError(rowNum, msg, field){
+        if(!rowErrors[rowNum]) rowErrors[rowNum] = [];
+        rowErrors[rowNum].push(msg);
+        const key = field+"-Error";
         summaryCounts[key] = (summaryCounts[key]||0)+1;
     }
 
@@ -22,86 +23,86 @@ function validateData(data) {
         let correctedRow = {...row};
         const rowNum = idx+2;
 
-        if(!row["Site Name"]) { errors.push(`Row ${rowNum}: Site Name blank`); addSummary("Site Name","Error"); }
+        if(!row["Site Name"]) { addRowError(rowNum,"Site Name blank","Site Name"); }
 
         if(row["Status"]) {
             const val = row["Status"].trim().toLowerCase();
             if(val === "online" || val === "offline") {
                 correctedRow["Status"] = val.charAt(0).toUpperCase()+val.slice(1);
-            } else { errors.push(`Row ${rowNum}: Invalid Status ${row["Status"]}`); addSummary("Status","Error"); }
-        } else { errors.push(`Row ${rowNum}: Status blank`); addSummary("Status","Error"); }
+            } else { addRowError(rowNum,`Invalid Status ${row["Status"]}`,"Status"); }
+        } else { addRowError(rowNum,"Status blank","Status"); }
 
         if(!row["TagID"] && !row["Reason Not Tagged"]) {
-            errors.push(`Row ${rowNum}: TagID and Reason Not Tagged both blank`); addSummary("Reason Not Tagged","Error");
+            addRowError(rowNum,"TagID and Reason Not Tagged both blank","Reason Not Tagged");
         }
         if(row["Reason Not Tagged"]) {
             if(!reasonNotTagged.map(v=>v.toLowerCase()).includes(row["Reason Not Tagged"].toLowerCase())) {
-                errors.push(`Row ${rowNum}: Invalid Reason Not Tagged ${row["Reason Not Tagged"]}`); addSummary("Reason Not Tagged","Error");
+                addRowError(rowNum,`Invalid Reason Not Tagged ${row["Reason Not Tagged"]}`,"Reason Not Tagged");
             }
         }
 
         if(row["att_Asset Status"]) {
             if(!assetStatusVals.map(v=>v.toLowerCase()).includes(row["att_Asset Status"].toLowerCase())) {
-                errors.push(`Row ${rowNum}: Invalid Asset Status ${row["att_Asset Status"]}`); addSummary("Asset Status","Error");
+                addRowError(rowNum,`Invalid Asset Status ${row["att_Asset Status"]}`,"Asset Status");
             }
-        } else { errors.push(`Row ${rowNum}: Asset Status blank`); addSummary("Asset Status","Error"); }
+        } else { addRowError(rowNum,"Asset Status blank","Asset Status"); }
 
         if(row["att_Asset Record Status"]) {
             if(!assetRecordStatusVals.map(v=>v.toLowerCase()).includes(row["att_Asset Record Status"].toLowerCase())) {
-                errors.push(`Row ${rowNum}: Invalid Asset Record Status ${row["att_Asset Record Status"]}`); addSummary("Asset Record Status","Error");
+                addRowError(rowNum,`Invalid Asset Record Status ${row["att_Asset Record Status"]}`,"Asset Record Status");
             }
-        } else { errors.push(`Row ${rowNum}: Asset Record Status blank`); addSummary("Asset Record Status","Error"); }
+        } else { addRowError(rowNum,"Asset Record Status blank","Asset Record Status"); }
 
         if(row["att_In-Service Date"]) {
             const d = row["att_In-Service Date"];
-            if(!/^\d{2}\/\d{2}\/\d{4}$/.test(d)) { errors.push(`Row ${rowNum}: Invalid In-Service Date ${d}`); addSummary("In-Service Date","Error"); }
+            if(!/^\d{2}\/\d{2}\/\d{4}$/.test(d)) { addRowError(rowNum,`Invalid In-Service Date ${d}`,"In-Service Date"); }
         }
 
         if(row["att_In-Service Date"] && !row["att_CA-Age"]) {
-            errors.push(`Row ${rowNum}: CA-Age blank but In-Service Date present`); addSummary("CA-Age","Error");
+            addRowError(rowNum,"CA-Age blank but In-Service Date present","CA-Age");
         }
         if(row["att_CA-Age"]) {
             if(!caAgeVals.map(v=>v.toLowerCase()).includes(row["att_CA-Age"].toLowerCase())) {
-                errors.push(`Row ${rowNum}: Invalid CA-Age ${row["att_CA-Age"]}`); addSummary("CA-Age","Error");
+                addRowError(rowNum,`Invalid CA-Age ${row["att_CA-Age"]}`,"CA-Age");
             }
         }
 
-        if(!row["att_CA-Condition"]) { errors.push(`Row ${rowNum}: CA-Condition blank`); addSummary("CA-Condition","Error"); }
+        if(!row["att_CA-Condition"]) { addRowError(rowNum,"CA-Condition blank","CA-Condition"); }
 
         if(row["att_CA-Condition"] && !row["att_Asset Condition"]) {
-            errors.push(`Row ${rowNum}: Asset Condition blank with CA-Condition present`); addSummary("Asset Condition","Error");
+            addRowError(rowNum,"Asset Condition blank with CA-Condition present","Asset Condition");
         }
         if(row["att_Asset Condition"]) {
             if(!assetConditionVals.map(v=>v.toLowerCase()).includes(row["att_Asset Condition"].toLowerCase())) {
-                errors.push(`Row ${rowNum}: Invalid Asset Condition ${row["att_Asset Condition"]}`); addSummary("Asset Condition","Error");
+                addRowError(rowNum,`Invalid Asset Condition ${row["att_Asset Condition"]}`,"Asset Condition");
             }
         }
 
         if(row["att_CA-Environment"]) {
             if(!caEnvVals.map(v=>v.toLowerCase()).includes(row["att_CA-Environment"].toLowerCase())) {
-                errors.push(`Row ${rowNum}: Invalid CA-Environment ${row["att_CA-Environment"]}`); addSummary("CA-Environment","Error");
+                addRowError(rowNum,`Invalid CA-Environment ${row["att_CA-Environment"]}`,"CA-Environment");
             }
-        } else { errors.push(`Row ${rowNum}: CA-Environment blank`); addSummary("CA-Environment","Error"); }
+        } else { addRowError(rowNum,"CA-Environment blank","CA-Environment"); }
 
         if(row["att_Capacity Qty"] && !row["att_Capacity Unit"]) {
-            errors.push(`Row ${rowNum}: Capacity Qty present but Unit blank`); addSummary("CA-Capacity Unit","Error");
+            addRowError(rowNum,"Capacity Qty present but Unit blank","CA-Capacity Unit");
         }
         if(row["att_Capacity Unit"]) {
             if(!caCapacityUnitVals.map(v=>v.toLowerCase()).includes(row["att_Capacity Unit"].toLowerCase())) {
-                errors.push(`Row ${rowNum}: Invalid Capacity Unit ${row["att_Capacity Unit"]}`); addSummary("CA-Capacity Unit","Error");
+                addRowError(rowNum,`Invalid Capacity Unit ${row["att_Capacity Unit"]}`,"CA-Capacity Unit");
             }
         }
 
         const imgCount = ["Image","Image 2","Image 3","Image 4","Image 5"].filter(c=>row[c]).length;
-        if(imgCount < 3) { errors.push(`Row ${rowNum}: Only ${imgCount} images provided; minimum 3 required`); addSummary("Images","Error"); }
+        if(imgCount < 3) { addRowError(rowNum,`Only ${imgCount} images provided; minimum 3 required`,"Images"); }
         if(row["Asset Description"] && /(panelboard|switchgear|switchboard)/i.test(row["Asset Description"])) {
-            if(imgCount < 5) { errors.push(`Row ${rowNum}: Only ${imgCount} images for Panelboard; 5 required`); addSummary("Images","Error"); }
+            if(imgCount < 5) { addRowError(rowNum,`Only ${imgCount} images for Panelboard; 5 required`,"Images"); }
         }
 
         corrected.push(correctedRow);
     });
 
-    return {errors,warnings,corrected,summaryCounts};
+    return {rowErrors,corrected,summaryCounts};
 }
 
 function renderSummary(summaryCounts){
@@ -138,9 +139,12 @@ document.getElementById('validateBtn').addEventListener('click', function() {
         const jsonData = XLSX.utils.sheet_to_json(ws,{defval:""});
         const result = validateData(jsonData);
         const resultsDiv = document.getElementById('results');
-        resultsDiv.innerHTML = "<h3>Validation Results</h3>"+
-            "<p>Errors: "+result.errors.length+"</p>"+
-            "<ul>"+result.errors.map(e=>"<li>"+e+"</li>").join("")+"</ul>";
+        resultsDiv.innerHTML = "<h3>Validation Results (Grouped by Row)</h3>";
+        for(const rowNum in result.rowErrors){
+            resultsDiv.innerHTML += `<p><b>Row ${rowNum}</b></p><ul>`+
+                result.rowErrors[rowNum].map(e=>"<li>"+e+"</li>").join("")+
+                "</ul>";
+        }
         renderSummary(result.summaryCounts);
         const newSheet = XLSX.utils.json_to_sheet(result.corrected);
         const newWB = XLSX.utils.book_new();
