@@ -32,3 +32,7 @@ button:hover {
     border:1px solid #ccc;
     padding:10px;
 }
+.download-link {
+    display:inline-block;
+    border-radius:4px;
+}
