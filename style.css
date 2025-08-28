@@ -12,6 +12,8 @@ h1 {
     padding: 10px;
     border: 1px solid #ccc;
     background: #fff;
+    max-height: 300px;
+    overflow-y: auto;
 }
 button {
     margin-top: 10px;
@@ -24,4 +26,9 @@ button {
 }
 button:hover {
     background: #005fa3;
+}
+#summary {
+    background:#fff;
+    border:1px solid #ccc;
+    padding:10px;
 }
